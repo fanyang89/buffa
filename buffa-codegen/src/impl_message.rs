@@ -817,7 +817,7 @@ pub(crate) fn decode_fn_token(ty: Type) -> TokenStream {
     }
 }
 
-fn is_non_default_expr(ty: Type, field_ident: &Ident) -> TokenStream {
+pub(crate) fn is_non_default_expr(ty: Type, field_ident: &Ident) -> TokenStream {
     match ty {
         Type::TYPE_INT32 | Type::TYPE_SINT32 | Type::TYPE_SFIXED32 => {
             quote! { self.#field_ident != 0i32 }
@@ -827,11 +827,12 @@ fn is_non_default_expr(ty: Type, field_ident: &Ident) -> TokenStream {
         }
         Type::TYPE_UINT32 | Type::TYPE_FIXED32 => quote! { self.#field_ident != 0u32 },
         Type::TYPE_UINT64 | Type::TYPE_FIXED64 => quote! { self.#field_ident != 0u64 },
-        // IEEE 754: `NaN != 0.0` is true (NaN is serialized), and `-0.0 != 0.0`
-        // is false (negative zero is suppressed like zero).  Both behaviours
-        // are correct per the proto3 spec, which treats -0.0 as the default.
-        Type::TYPE_FLOAT => quote! { self.#field_ident != 0f32 },
-        Type::TYPE_DOUBLE => quote! { self.#field_ident != 0f64 },
+        // Float presence is by bit pattern: `to_bits() != 0` is true for NaN
+        // (serialized) and for -0.0 (also serialized — the proto3 spec treats
+        // only IEEE +0.0 as the default, and the conformance suite checks
+        // that -0.0 round-trips through an implicit-presence field).
+        Type::TYPE_FLOAT => quote! { self.#field_ident.to_bits() != 0u32 },
+        Type::TYPE_DOUBLE => quote! { self.#field_ident.to_bits() != 0u64 },
         Type::TYPE_BOOL => quote! { self.#field_ident },
         _ => unreachable!("is_non_default_expr called for non-numeric type {:?}", ty),
     }
@@ -1835,145 +1836,6 @@ fn repeated_merge_arm(
 // Oneof field code generation
 // ---------------------------------------------------------------------------
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::generated::descriptor::field_descriptor_proto::{Label, Type};
-    use crate::generated::descriptor::{FieldDescriptorProto, FieldOptions};
-
-    fn make_field(ty: Type, label: Label) -> FieldDescriptorProto {
-        FieldDescriptorProto {
-            r#type: Some(ty),
-            label: Some(label),
-            ..Default::default()
-        }
-    }
-
-    // ── is_explicit_presence_scalar ──────────────────────────────────────
-
-    #[test]
-    fn explicit_presence_proto3_non_optional_is_false() {
-        let f = make_field(Type::TYPE_INT32, Label::LABEL_OPTIONAL);
-        assert!(!is_explicit_presence_scalar(
-            &f,
-            Type::TYPE_INT32,
-            &ResolvedFeatures::proto3_defaults()
-        ));
-    }
-
-    #[test]
-    fn explicit_presence_proto3_optional_is_true() {
-        let f = FieldDescriptorProto {
-            r#type: Some(Type::TYPE_INT32),
-            label: Some(Label::LABEL_OPTIONAL),
-            proto3_optional: Some(true),
-            ..Default::default()
-        };
-        assert!(is_explicit_presence_scalar(
-            &f,
-            Type::TYPE_INT32,
-            &ResolvedFeatures::proto3_defaults()
-        ));
-    }
-
-    #[test]
-    fn explicit_presence_proto2_optional_scalar_is_true() {
-        let f = make_field(Type::TYPE_INT32, Label::LABEL_OPTIONAL);
-        assert!(is_explicit_presence_scalar(
-            &f,
-            Type::TYPE_INT32,
-            &ResolvedFeatures::proto2_defaults()
-        ));
-    }
-
-    #[test]
-    fn explicit_presence_proto2_optional_in_oneof_is_false() {
-        // Oneof members are handled by the oneof enum, not as Option<T> scalars.
-        let f = FieldDescriptorProto {
-            r#type: Some(Type::TYPE_INT32),
-            label: Some(Label::LABEL_OPTIONAL),
-            oneof_index: Some(0),
-            ..Default::default()
-        };
-        assert!(!is_explicit_presence_scalar(
-            &f,
-            Type::TYPE_INT32,
-            &ResolvedFeatures::proto2_defaults()
-        ));
-    }
-
-    #[test]
-    fn explicit_presence_message_type_always_false() {
-        let f = FieldDescriptorProto {
-            r#type: Some(Type::TYPE_MESSAGE),
-            label: Some(Label::LABEL_OPTIONAL),
-            proto3_optional: Some(true),
-            ..Default::default()
-        };
-        assert!(!is_explicit_presence_scalar(
-            &f,
-            Type::TYPE_MESSAGE,
-            &ResolvedFeatures::proto3_defaults()
-        ));
-        assert!(!is_explicit_presence_scalar(
-            &f,
-            Type::TYPE_MESSAGE,
-            &ResolvedFeatures::proto2_defaults()
-        ));
-    }
-
-    // ── is_field_packed ──────────────────────────────────────────────────
-
-    #[test]
-    fn packed_proto3_scalar_default_is_packed() {
-        let f = make_field(Type::TYPE_INT32, Label::LABEL_REPEATED);
-        assert!(is_field_packed(&f, &ResolvedFeatures::proto3_defaults()));
-    }
-
-    #[test]
-    fn packed_proto2_scalar_default_is_unpacked() {
-        let f = make_field(Type::TYPE_INT32, Label::LABEL_REPEATED);
-        assert!(!is_field_packed(&f, &ResolvedFeatures::proto2_defaults()));
-    }
-
-    #[test]
-    fn packed_proto2_explicit_packed_true() {
-        let f = FieldDescriptorProto {
-            r#type: Some(Type::TYPE_INT32),
-            label: Some(Label::LABEL_REPEATED),
-            options: (FieldOptions {
-                packed: Some(true),
-                ..Default::default()
-            })
-            .into(),
-            ..Default::default()
-        };
-        assert!(is_field_packed(&f, &ResolvedFeatures::proto2_defaults()));
-    }
-
-    #[test]
-    fn packed_proto3_explicit_packed_false() {
-        let f = FieldDescriptorProto {
-            r#type: Some(Type::TYPE_INT32),
-            label: Some(Label::LABEL_REPEATED),
-            options: (FieldOptions {
-                packed: Some(false),
-                ..Default::default()
-            })
-            .into(),
-            ..Default::default()
-        };
-        assert!(!is_field_packed(&f, &ResolvedFeatures::proto3_defaults()));
-    }
-
-    #[test]
-    fn packed_string_always_false() {
-        let f = make_field(Type::TYPE_STRING, Label::LABEL_REPEATED);
-        assert!(!is_field_packed(&f, &ResolvedFeatures::proto3_defaults()));
-        assert!(!is_field_packed(&f, &ResolvedFeatures::proto2_defaults()));
-    }
-}
-
 /// Generate a `compute_size` match arm for one oneof variant.
 ///
 /// Emits `EnumIdent::VariantIdent(x) => { size += tag_len + encoded_len; }`.
@@ -2605,4 +2467,143 @@ fn map_merge_arm(
             self.#ident.insert(#k, #v);
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::generated::descriptor::field_descriptor_proto::{Label, Type};
+    use crate::generated::descriptor::{FieldDescriptorProto, FieldOptions};
+
+    fn make_field(ty: Type, label: Label) -> FieldDescriptorProto {
+        FieldDescriptorProto {
+            r#type: Some(ty),
+            label: Some(label),
+            ..Default::default()
+        }
+    }
+
+    // ── is_explicit_presence_scalar ──────────────────────────────────────
+
+    #[test]
+    fn explicit_presence_proto3_non_optional_is_false() {
+        let f = make_field(Type::TYPE_INT32, Label::LABEL_OPTIONAL);
+        assert!(!is_explicit_presence_scalar(
+            &f,
+            Type::TYPE_INT32,
+            &ResolvedFeatures::proto3_defaults()
+        ));
+    }
+
+    #[test]
+    fn explicit_presence_proto3_optional_is_true() {
+        let f = FieldDescriptorProto {
+            r#type: Some(Type::TYPE_INT32),
+            label: Some(Label::LABEL_OPTIONAL),
+            proto3_optional: Some(true),
+            ..Default::default()
+        };
+        assert!(is_explicit_presence_scalar(
+            &f,
+            Type::TYPE_INT32,
+            &ResolvedFeatures::proto3_defaults()
+        ));
+    }
+
+    #[test]
+    fn explicit_presence_proto2_optional_scalar_is_true() {
+        let f = make_field(Type::TYPE_INT32, Label::LABEL_OPTIONAL);
+        assert!(is_explicit_presence_scalar(
+            &f,
+            Type::TYPE_INT32,
+            &ResolvedFeatures::proto2_defaults()
+        ));
+    }
+
+    #[test]
+    fn explicit_presence_proto2_optional_in_oneof_is_false() {
+        // Oneof members are handled by the oneof enum, not as Option<T> scalars.
+        let f = FieldDescriptorProto {
+            r#type: Some(Type::TYPE_INT32),
+            label: Some(Label::LABEL_OPTIONAL),
+            oneof_index: Some(0),
+            ..Default::default()
+        };
+        assert!(!is_explicit_presence_scalar(
+            &f,
+            Type::TYPE_INT32,
+            &ResolvedFeatures::proto2_defaults()
+        ));
+    }
+
+    #[test]
+    fn explicit_presence_message_type_always_false() {
+        let f = FieldDescriptorProto {
+            r#type: Some(Type::TYPE_MESSAGE),
+            label: Some(Label::LABEL_OPTIONAL),
+            proto3_optional: Some(true),
+            ..Default::default()
+        };
+        assert!(!is_explicit_presence_scalar(
+            &f,
+            Type::TYPE_MESSAGE,
+            &ResolvedFeatures::proto3_defaults()
+        ));
+        assert!(!is_explicit_presence_scalar(
+            &f,
+            Type::TYPE_MESSAGE,
+            &ResolvedFeatures::proto2_defaults()
+        ));
+    }
+
+    // ── is_field_packed ──────────────────────────────────────────────────
+
+    #[test]
+    fn packed_proto3_scalar_default_is_packed() {
+        let f = make_field(Type::TYPE_INT32, Label::LABEL_REPEATED);
+        assert!(is_field_packed(&f, &ResolvedFeatures::proto3_defaults()));
+    }
+
+    #[test]
+    fn packed_proto2_scalar_default_is_unpacked() {
+        let f = make_field(Type::TYPE_INT32, Label::LABEL_REPEATED);
+        assert!(!is_field_packed(&f, &ResolvedFeatures::proto2_defaults()));
+    }
+
+    #[test]
+    fn packed_proto2_explicit_packed_true() {
+        let f = FieldDescriptorProto {
+            r#type: Some(Type::TYPE_INT32),
+            label: Some(Label::LABEL_REPEATED),
+            options: (FieldOptions {
+                packed: Some(true),
+                ..Default::default()
+            })
+            .into(),
+            ..Default::default()
+        };
+        assert!(is_field_packed(&f, &ResolvedFeatures::proto2_defaults()));
+    }
+
+    #[test]
+    fn packed_proto3_explicit_packed_false() {
+        let f = FieldDescriptorProto {
+            r#type: Some(Type::TYPE_INT32),
+            label: Some(Label::LABEL_REPEATED),
+            options: (FieldOptions {
+                packed: Some(false),
+                ..Default::default()
+            })
+            .into(),
+            ..Default::default()
+        };
+        assert!(!is_field_packed(&f, &ResolvedFeatures::proto3_defaults()));
+    }
+
+    #[test]
+    fn packed_string_always_false() {
+        let f = make_field(Type::TYPE_STRING, Label::LABEL_REPEATED);
+        assert!(!is_field_packed(&f, &ResolvedFeatures::proto3_defaults()));
+        assert!(!is_field_packed(&f, &ResolvedFeatures::proto2_defaults()));
+    }
 }

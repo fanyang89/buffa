@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-01
+
 ### Breaking changes
 
 - **`Extension::new(number)` → `Extension::new(number, extendee)`.** Same for
@@ -23,8 +25,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Deprecated
 
 - **`set_any_registry`, `set_extension_registry`** — use
-  `buffa::json_registry::set_json_registry` instead, which installs both halves
+  `buffa::type_registry::set_type_registry` instead, which installs all maps
   in one call. The deprecated functions still work.
+- **`AnyTypeEntry` → `JsonAnyEntry`, `ExtensionRegistryEntry` → `JsonExtEntry`.**
+  Type aliases for one release cycle. The text-format fields have moved to
+  separate `TextAnyEntry` / `TextExtEntry` structs in `type_registry`.
 
 ### Added
 
@@ -35,16 +40,62 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   proto2 `[default = ...]` on extension declarations, and MessageSet wire
   format behind `CodeGenConfig::allow_message_set`. See the
   [Extensions section of the user guide](docs/guide.md#extensions-custom-options).
-- **`JsonRegistry`** — unified JSON registry covering both `Any` type entries
-  and extension entries. Codegen emits `register_json(&mut JsonRegistry)` per
-  file; call once per generated file, then `set_json_registry(reg)`.
+- **`TypeRegistry`** — unified registry covering `Any` type entries and
+  extension entries for both JSON and text formats. Codegen emits
+  `register_types(&mut TypeRegistry)` per file; call once per generated file,
+  then `set_type_registry(reg)`. JSON entries (`JsonAnyEntry`, `JsonExtEntry`)
+  and text entries (`TextAnyEntry`, `TextExtEntry`) live in feature-split
+  maps so `json` and `text` are independently enableable.
 - **`JsonParseOptions::strict_extension_keys`** — error on unregistered `"[...]"`
   JSON keys (default: silently drop, matching pre-0.3 behavior for all unknown
   keys).
 - **Editions `features.message_encoding = DELIMITED`** — fully supported in
   codegen, previously parsed but ignored. Message fields with this feature use
   the group wire format (StartGroup/EndGroup) instead of length-prefixed.
-- **Conformance:** `TestAllTypesEdition2023` enabled; 5539 → 5549 passing (std).
+- **Text format (`textproto`)** — the `buffa::text` module provides
+  `TextFormat` trait, `TextEncoder`, `TextDecoder`, and `encode_to_string` /
+  `decode_from_str` conveniences. Enable with `features = ["text"]`
+  (zero-dependency, `no_std`-compatible) and `Config::generate_text(true)`.
+  Covers `Any` expansion (`[type.googleapis.com/...] { ... }`), extension
+  brackets (`[pkg.ext] { ... }`), and group/DELIMITED naming. `Any` expansion
+  and extension brackets consult the text maps in `TypeRegistry` — the `json`
+  and `text` features are independently enableable. Passes the full
+  text-format conformance suite (883/883).
+- **Conformance:** `TestAllTypesEdition2023` enabled; binary+JSON 5539 → 5549
+  passing (std). Text format suite 0 → 883 passing (was entirely skipped).
+- **`buffa-descriptor` crate** — `FileDescriptorProto` and friends are now in a
+  standalone crate that depends only on `buffa`, so descriptor types are usable
+  without pulling in `quote`/`syn`/`prettyplease`. `buffa-codegen` re-exports
+  the module so existing `buffa_codegen::generated::*` paths still resolve.
+  ([#8](https://github.com/anthropics/buffa/pull/8))
+- **Proto source comments → rustdoc.** Comments from `.proto` files are now
+  emitted as `///` doc comments on generated structs, fields, enums, variants,
+  and view types. Requires `--include_source_info` (set automatically by
+  `buffa-build` and the protoc plugins).
+  ([#7](https://github.com/anthropics/buffa/pull/7))
+- **`buffa::encoding::MAX_FIELD_NUMBER`** constant (`(1 << 29) - 1`), replacing
+  the magic number at all call sites.
+  ([#21](https://github.com/anthropics/buffa/pull/21))
+
+### Changed
+
+- **`buffa-build` skips writing unchanged outputs**, avoiding mtime bumps that
+  trigger needless downstream recompilation.
+  ([#17](https://github.com/anthropics/buffa/pull/17))
+- **Generated code emits `Self`** in `impl` blocks instead of repeating the
+  type name, so consumer crates that enable `clippy::use_self` get clean
+  output. ([#15](https://github.com/anthropics/buffa/pull/15))
+
+### Fixed
+
+- **Codegen no longer reports a false name collision** between a nested type
+  and a proto3 `optional` field whose synthetic oneof PascalCases to the same
+  name. ([#20](https://github.com/anthropics/buffa/pull/20),
+  fixes [#12](https://github.com/anthropics/buffa/issues/12))
+- **Generated rustdoc no longer breaks on proto comments** containing
+  `[foo][]` reference-style links or bare URLs — these are now escaped so
+  rustdoc treats them as literal text.
+  ([#25](https://github.com/anthropics/buffa/pull/25))
 
 ## [0.2.0] - 2026-03-16
 
@@ -171,6 +222,7 @@ This release publishes:
 
 MSRV: Rust 1.85.
 
-[Unreleased]: https://github.com/anthropics/buffa/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/anthropics/buffa/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/anthropics/buffa/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/anthropics/buffa/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/anthropics/buffa/releases/tag/v0.1.0

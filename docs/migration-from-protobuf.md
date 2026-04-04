@@ -12,13 +12,13 @@ This guide covers migration from both versions of the `protobuf` crate:
 ```diff
  [dependencies]
 -protobuf = "3"
-+buffa = "0.1"
-+buffa-types = "0.1"
++buffa = "0.3"
++buffa-types = "0.3"
 
  [build-dependencies]
 -protobuf-codegen = "3"
 -protoc-bin-vendored = "3"    # if using vendored protoc
-+buffa-build = "0.1"
++buffa-build = "0.3"
 ```
 
 ### From Google v4
@@ -26,12 +26,12 @@ This guide covers migration from both versions of the `protobuf` crate:
 ```diff
  [dependencies]
 -protobuf = "=4.33.1-release"
-+buffa = "0.1"
-+buffa-types = "0.1"
++buffa = "0.3"
++buffa-types = "0.3"
 
  [build-dependencies]
 -protobuf-codegen = "=4.33.1-release"
-+buffa-build = "0.1"
++buffa-build = "0.3"
 ```
 
 ## 2. Rewrite `build.rs`
@@ -358,7 +358,7 @@ Features in `protobuf` v3/v4 that buffa does not support:
 | Feature | buffa status |
 |---------|-------------|
 | Runtime reflection (`descriptor()`) | Not supported. Server reflection (raw descriptor bytes) is planned. |
-| `protobuf::text_format` | Not supported, not planned |
+| `protobuf::text_format` | Use `generate_text(true)` + `buffa::text::{encode_to_string, decode_from_str}` |
 | `protobuf::json` (v3) | Use `generate_json(true)` + `serde_json` instead |
 | Lite runtime | Not applicable (buffa is already lightweight) |
 | `proto!` construction macro (v4) | Not supported |

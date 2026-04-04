@@ -9,11 +9,11 @@ Add buffa to your project:
 ```toml
 # Cargo.toml
 [dependencies]
-buffa = "0.1"
-buffa-types = "0.1"       # well-known types (Timestamp, Duration, Any, etc.)
+buffa = "0.3"
+buffa-types = "0.3"       # well-known types (Timestamp, Duration, Any, etc.)
 
 [build-dependencies]
-buffa-build = "0.1"
+buffa-build = "0.3"
 ```
 
 ### Feature flags
@@ -28,8 +28,8 @@ Both `buffa` and `buffa-types` share the same feature flag names:
 
 ```toml
 # Enable JSON support
-buffa = { version = "0.1", features = ["json"] }
-buffa-types = { version = "0.1", features = ["json"] }
+buffa = { version = "0.3", features = ["json"] }
+buffa-types = { version = "0.3", features = ["json"] }
 ```
 
 ## Prerequisites
@@ -144,6 +144,7 @@ pub mod my_package {
 | `.out_dir(path)` | `$OUT_DIR` | Output directory for generated files |
 | `.generate_views(bool)` | `true` | Generate zero-copy view types |
 | `.generate_json(bool)` | `false` | Generate serde Serialize/Deserialize for proto3 JSON |
+| `.generate_text(bool)` | `false` | Generate `impl buffa::text::TextFormat` for textproto encoding/decoding |
 | `.preserve_unknown_fields(bool)` | `true` | Preserve unknown fields for round-trip fidelity |
 | `.generate_arbitrary(bool)` | `false` | Emit `#[derive(arbitrary::Arbitrary)]` gated behind the `arbitrary` feature (for fuzzing) |
 | `.strict_utf8_mapping(bool)` | `false` | Map `utf8_validation = NONE` string fields to `Vec<u8>` / `&[u8]` instead of `String` (see [Skipping UTF-8 validation](#skipping-utf-8-validation)) |
@@ -162,7 +163,7 @@ This requires `buffa-types` as a dependency in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-buffa-types = "0.1"
+buffa-types = "0.3"
 ```
 
 `buffa-types` is a pure source crate — it does **not** run `protoc` or any code generation at build time. If your protos use WKTs but you generate your own Rust code ahead-of-time (via `buf generate` or a `protoc` script), then `buffa` + `buffa-types` is your entire runtime dependency surface.
@@ -274,8 +275,16 @@ There are two binaries: `protoc-gen-buffa` (the codegen plugin) and `protoc-gen-
 
 **From source (requires Rust toolchain):**
 
+From crates.io (recommended):
+
 ```sh
-cargo install --git https://github.com/anthropics/buffa protoc-gen-buffa protoc-gen-buffa-packaging
+cargo install --locked protoc-gen-buffa protoc-gen-buffa-packaging
+```
+
+Or from a git ref, for unreleased changes:
+
+```sh
+cargo install --locked --git https://github.com/anthropics/buffa protoc-gen-buffa protoc-gen-buffa-packaging
 ```
 
 **From GitHub releases:**
@@ -284,25 +293,25 @@ Download the binaries for your platform from the [releases page](https://github.
 
 ```sh
 # Download binaries + cosign signatures + certificates (both plugins match)
-gh release download v0.2.0 --repo anthropics/buffa \
+gh release download v0.3.0 --repo anthropics/buffa \
     --pattern 'protoc-gen-buffa*-linux-x86_64*'
 
 # Verify with GitHub attestations (requires gh CLI ≥ 2.49)
-gh attestation verify protoc-gen-buffa-v0.2.0-linux-x86_64 --repo anthropics/buffa
-gh attestation verify protoc-gen-buffa-packaging-v0.2.0-linux-x86_64 --repo anthropics/buffa
+gh attestation verify protoc-gen-buffa-v0.3.0-linux-x86_64 --repo anthropics/buffa
+gh attestation verify protoc-gen-buffa-packaging-v0.3.0-linux-x86_64 --repo anthropics/buffa
 
 # Or with cosign (standalone, no gh required) — shown for one binary
 cosign verify-blob \
-    --signature protoc-gen-buffa-v0.2.0-linux-x86_64.sig \
-    --certificate protoc-gen-buffa-v0.2.0-linux-x86_64.pem \
+    --signature protoc-gen-buffa-v0.3.0-linux-x86_64.sig \
+    --certificate protoc-gen-buffa-v0.3.0-linux-x86_64.pem \
     --certificate-identity-regexp "github.com/anthropics/buffa" \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-    protoc-gen-buffa-v0.2.0-linux-x86_64
+    protoc-gen-buffa-v0.3.0-linux-x86_64
 
 # Install both
-chmod +x protoc-gen-buffa-v0.2.0-linux-x86_64 protoc-gen-buffa-packaging-v0.2.0-linux-x86_64
-mv protoc-gen-buffa-v0.2.0-linux-x86_64 ~/.local/bin/protoc-gen-buffa
-mv protoc-gen-buffa-packaging-v0.2.0-linux-x86_64 ~/.local/bin/protoc-gen-buffa-packaging
+chmod +x protoc-gen-buffa-v0.3.0-linux-x86_64 protoc-gen-buffa-packaging-v0.3.0-linux-x86_64
+mv protoc-gen-buffa-v0.3.0-linux-x86_64 ~/.local/bin/protoc-gen-buffa
+mv protoc-gen-buffa-packaging-v0.3.0-linux-x86_64 ~/.local/bin/protoc-gen-buffa-packaging
 ```
 
 Available platforms: `linux-x86_64`, `linux-aarch64`, `darwin-x86_64`, `darwin-aarch64`, `windows-x86_64` (`.exe`). All releases include SHA-256 checksums, Sigstore cosign signatures, and signed SLSA build provenance for supply chain verification.
@@ -357,7 +366,7 @@ Plugin options (passed via `opt:`):
 ```yaml
 version: v2
 plugins:
-  - remote: buf.build/anthropic/buffa:v0.1.0
+  - remote: buf.build/anthropic/buffa:v0.3.0
     out: src/generated
     opt: [views=true]
 ```
@@ -813,7 +822,7 @@ Enable the `json` feature and `generate_json(true)` in your build config:
 ```toml
 # Cargo.toml
 [dependencies]
-buffa = { version = "0.1", features = ["json"] }
+buffa = { version = "0.3", features = ["json"] }
 serde_json = "1"
 ```
 
@@ -856,6 +865,68 @@ let msg = with_json_parse_options(&opts, || {
     serde_json::from_str::<Person>(json)
 })?;
 ```
+
+## Text format (textproto)
+
+The protobuf text format is a human-readable debug representation — useful
+for config files, golden-file tests, and logging. It is **not** a stable
+interchange format: the spec permits implementations to vary whitespace and
+float formatting. Use binary or JSON for data on the wire.
+
+Enable the `text` feature and `generate_text(true)`:
+
+```toml
+# Cargo.toml
+[dependencies]
+buffa = { version = "0.3", features = ["text"] }
+```
+
+```rust,ignore
+// build.rs
+buffa_build::Config::new()
+    .files(&["proto/my_service.proto"])
+    .includes(&["proto/"])
+    .generate_text(true)
+    .compile()
+    .unwrap();
+```
+
+The generated `TextFormat` impl covers nested messages, repeated fields
+(both line-per-element and `[1, 2, 3]` forms on parse), maps, oneofs, and
+groups/DELIMITED:
+
+```rust,ignore
+use buffa::text::{encode_to_string, encode_to_string_pretty, decode_from_str};
+
+// Single-line: `name: "Alice" id: 42`
+let compact = encode_to_string(&msg);
+
+// Multi-line with 2-space indent
+let pretty = encode_to_string_pretty(&msg);
+
+// Parse
+let msg: Person = decode_from_str(&compact)?;
+```
+
+For streaming to a `Write` sink or tuning options (e.g. printing unknown
+fields), use `TextEncoder` / `TextDecoder` directly:
+
+```rust,ignore
+use buffa::text::{TextEncoder, TextFormat};
+
+let mut out = String::new();
+let mut enc = TextEncoder::new_pretty(&mut out)
+    .emit_unknown(true);  // print unknown fields by number (debug-only)
+msg.encode_text(&mut enc)?;
+```
+
+`Any` expansion (`[type.googleapis.com/pkg.Type] { ... }`) and the
+`[pkg.ext] { ... }` extension bracket syntax both consult the `TypeRegistry`
+— see [Extensions](#extensions-custom-options). If you already call
+`register_types`, text format picks up those types alongside JSON. The `json`
+and `text` features are independently enableable.
+
+The `text` feature is zero-dependency and fully `no_std` + `alloc`.
 
 ## Well-known types reference
 
@@ -938,8 +1009,8 @@ let obj = Struct::from_fields([
 Buffa works without `std` (requires `alloc`):
 
 ```toml
-buffa = { version = "0.1", default-features = false }
-buffa-types = { version = "0.1", default-features = false }
+buffa = { version = "0.3", default-features = false }
+buffa-types = { version = "0.3", default-features = false }
 ```
 
 In `no_std` mode:
@@ -968,7 +1039,7 @@ Buffa supports proto2 with these semantics:
 
 > **Runnable example:** [`examples/envelope/`](../examples/envelope/) —
 > a standalone crate demonstrating binary get/set/has/clear, `[default = ...]`,
-> `"[pkg.ext]"` JSON keys via `JsonRegistry`, and the extendee identity check.
+> `"[pkg.ext]"` JSON keys via `TypeRegistry`, and the extendee identity check.
 > Run with `cargo run --manifest-path examples/envelope/Cargo.toml`.
 
 Extensions are how protobuf attaches custom metadata to descriptor options —
@@ -1066,19 +1137,20 @@ let explicit: Option<i32> = opts.extension(&RETRY_COUNT);    // None if unset
 
 Proto3 JSON represents extensions with bracketed fully-qualified keys:
 `{"[buf.validate.field]": {...}}`. Serializing and deserializing these
-requires a populated `JsonRegistry` so serde knows which `"[...]"` keys
+requires a populated `TypeRegistry` so serde knows which `"[...]"` keys
 belong to which extendee and how to encode them.
 
 Setup (once, at startup):
 
 ```rust,ignore
-use buffa::json_registry::{JsonRegistry, set_json_registry};
+use buffa::type_registry::{TypeRegistry, set_type_registry};
 
-let mut reg = JsonRegistry::new();
-// Codegen emits register_json per file; covers both Any types AND extensions:
-my_pkg::register_json(&mut reg);
-buf_validate::register_json(&mut reg);
-set_json_registry(reg);
+let mut reg = TypeRegistry::new();
+// Codegen emits register_types per file; covers Any types AND extensions,
+// for both JSON and text:
+my_pkg::register_types(&mut reg);
+buf_validate::register_types(&mut reg);
+set_type_registry(reg);
 ```
 
 After setup, `serde_json::to_string(&msg)` and `serde_json::from_str(...)`

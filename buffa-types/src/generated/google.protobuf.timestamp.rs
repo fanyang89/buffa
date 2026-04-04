@@ -8,12 +8,12 @@
 /// Gregorian calendar backwards to year one.
 ///
 /// All minutes are 60 seconds long. Leap seconds are "smeared" so that no leap
-/// second table is needed for interpretation, using a [24-hour linear
-/// smear](https://developers.google.com/time/smear).
+/// second table is needed for interpretation, using a \[24-hour linear
+/// smear\](<https://developers.google.com/time/smear>).
 ///
 /// The range is from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z. By
-/// restricting to that range, we ensure that we can convert to and from [RFC
-/// 3339](https://www.ietf.org/rfc/rfc3339.txt) date strings.
+/// restricting to that range, we ensure that we can convert to and from \[RFC
+/// 3339\](<https://www.ietf.org/rfc/rfc3339.txt>) date strings.
 ///
 /// # Examples
 ///
@@ -80,7 +80,7 @@
 ///
 /// In JSON format, the Timestamp type is encoded as a string in the
 /// [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) format. That is, the
-/// format is "{year}-{month}-{day}T{hour}:{min}:{sec}[.{frac_sec}]Z"
+/// format is "{year}-{month}-{day}T{hour}:{min}:{sec}\[.{frac_sec}\]Z"
 /// where {year} is always expressed using four digits while {month}, {day},
 /// {hour}, {min}, and {sec} are zero-padded to two digits each. The fractional
 /// seconds, which can go up to 9 digits (i.e. up to 1 nanosecond resolution),
@@ -99,8 +99,8 @@
 /// to this format using
 /// [`strftime`](https://docs.python.org/2/library/time.html#time.strftime) with
 /// the time format spec '%Y-%m-%dT%H:%M:%S.%fZ'. Likewise, in Java, one can use
-/// the Joda Time's [`ISODateTimeFormat.dateTime()`](
-/// http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime()
+/// the Joda Time's \[`ISODateTimeFormat.dateTime()`\](
+/// <http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime(>)
 /// ) to obtain a formatter capable of generating timestamps in this format.
 #[derive(Clone, PartialEq, Default)]
 #[cfg_attr(feature = "arbitrary", derive(::arbitrary::Arbitrary))]
@@ -236,6 +236,46 @@ impl ::buffa::ExtensionSet for Timestamp {
         &mut self.__buffa_unknown_fields
     }
 }
+impl ::buffa::text::TextFormat for Timestamp {
+    fn encode_text(
+        &self,
+        enc: &mut ::buffa::text::TextEncoder<'_>,
+    ) -> ::core::fmt::Result {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.seconds != 0i64 {
+            enc.write_field_name("seconds")?;
+            enc.write_i64(self.seconds)?;
+        }
+        if self.nanos != 0i32 {
+            enc.write_field_name("nanos")?;
+            enc.write_i32(self.nanos)?;
+        }
+        enc.write_unknown_fields(&self.__buffa_unknown_fields)?;
+        ::core::result::Result::Ok(())
+    }
+    fn merge_text(
+        &mut self,
+        dec: &mut ::buffa::text::TextDecoder<'_>,
+    ) -> ::core::result::Result<(), ::buffa::text::ParseError> {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        while let ::core::option::Option::Some(__name) = dec.read_field_name()? {
+            match __name {
+                "seconds" => self.seconds = dec.read_i64()?,
+                "nanos" => self.nanos = dec.read_i32()?,
+                _ => dec.skip_value()?,
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+}
+#[doc(hidden)]
+pub const __TIMESTAMP_TEXT_ANY: ::buffa::type_registry::TextAnyEntry = ::buffa::type_registry::TextAnyEntry {
+    type_url: "type.googleapis.com/google.protobuf.Timestamp",
+    text_encode: ::buffa::type_registry::any_encode_text::<Timestamp>,
+    text_merge: ::buffa::type_registry::any_merge_text::<Timestamp>,
+};
 /// A Timestamp represents a point in time independent of any time zone or local
 /// calendar, encoded as a count of seconds and fractions of seconds at
 /// nanosecond resolution. The count is relative to an epoch at UTC midnight on
@@ -243,12 +283,12 @@ impl ::buffa::ExtensionSet for Timestamp {
 /// Gregorian calendar backwards to year one.
 ///
 /// All minutes are 60 seconds long. Leap seconds are "smeared" so that no leap
-/// second table is needed for interpretation, using a [24-hour linear
-/// smear](https://developers.google.com/time/smear).
+/// second table is needed for interpretation, using a \[24-hour linear
+/// smear\](<https://developers.google.com/time/smear>).
 ///
 /// The range is from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z. By
-/// restricting to that range, we ensure that we can convert to and from [RFC
-/// 3339](https://www.ietf.org/rfc/rfc3339.txt) date strings.
+/// restricting to that range, we ensure that we can convert to and from \[RFC
+/// 3339\](<https://www.ietf.org/rfc/rfc3339.txt>) date strings.
 ///
 /// # Examples
 ///
@@ -315,7 +355,7 @@ impl ::buffa::ExtensionSet for Timestamp {
 ///
 /// In JSON format, the Timestamp type is encoded as a string in the
 /// [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) format. That is, the
-/// format is "{year}-{month}-{day}T{hour}:{min}:{sec}[.{frac_sec}]Z"
+/// format is "{year}-{month}-{day}T{hour}:{min}:{sec}\[.{frac_sec}\]Z"
 /// where {year} is always expressed using four digits while {month}, {day},
 /// {hour}, {min}, and {sec} are zero-padded to two digits each. The fractional
 /// seconds, which can go up to 9 digits (i.e. up to 1 nanosecond resolution),
@@ -334,8 +374,8 @@ impl ::buffa::ExtensionSet for Timestamp {
 /// to this format using
 /// [`strftime`](https://docs.python.org/2/library/time.html#time.strftime) with
 /// the time format spec '%Y-%m-%dT%H:%M:%S.%fZ'. Likewise, in Java, one can use
-/// the Joda Time's [`ISODateTimeFormat.dateTime()`](
-/// http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime()
+/// the Joda Time's \[`ISODateTimeFormat.dateTime()`\](
+/// <http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime(>)
 /// ) to obtain a formatter capable of generating timestamps in this format.
 #[derive(Clone, Debug, Default)]
 pub struct TimestampView<'a> {
